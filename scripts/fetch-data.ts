@@ -23,6 +23,21 @@ const UA =
 const today = () => new Date().toISOString().slice(0, 10)
 const errors: string[] = []
 
+/**
+ * Linki z zewnętrznych źródeł trafiają na stronę jako href. Przyjmujemy tylko https
+ * i tylko z oczekiwanej domeny; w innym wypadku zwracamy bezpieczny adres zastępczy.
+ */
+function safeUrl(candidate: string | undefined, allowedHost: string, fallback: string): string {
+  try {
+    const u = new URL((candidate ?? '').trim())
+    const hostOk = u.hostname === allowedHost || u.hostname.endsWith(`.${allowedHost}`)
+    if (u.protocol === 'https:' && hostOk) return u.toString()
+  } catch {
+    /* niepoprawny URL */
+  }
+  return fallback
+}
+
 async function http(url: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, {
     ...init,
@@ -271,6 +286,8 @@ async function fetchPolymarket(): Promise<OddsMarket[]> {
     const m = open.sort((a, b) => (a.endDate ?? '').localeCompare(b.endDate ?? ''))[0]
     if (!m) continue
     const prices = JSON.parse(m.outcomePrices) as string[]
+    // slug idzie do linku na stronie – tylko znaki dozwolone w slugach Polymarket
+    if (!/^[a-z0-9-]+$/i.test(ev.slug)) continue
     out.push({
       slug: ev.slug,
       question: m.question,
@@ -294,7 +311,7 @@ async function fetchAdvisories(): Promise<Advisory[]> {
     if (!item) throw new Error('brak wpisu dla Polski')
     const title = item.match(/<title>([\s\S]*?)<\/title>/)?.[1].trim() ?? ''
     const level = title.match(/Level \d/i)?.[0] ?? '?'
-    const link = item.match(/<link>([\s\S]*?)<\/link>/)?.[1].trim() ?? 'https://travel.state.gov/'
+    const link = safeUrl(item.match(/<link>([\s\S]*?)<\/link>/)?.[1], 'state.gov', 'https://travel.state.gov/')
     const pub = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1].trim() ?? ''
     out.push({ country: 'USA', level, summary: title.replace(/^Poland\s*-\s*/i, ''), updatedAt: new Date(pub).toISOString(), url: link })
   })
@@ -334,7 +351,7 @@ async function fetchGovPlNews(site: string, label: string): Promise<NewsItem[]> 
     items.push({
       source: label,
       title: link[2].replace(/\s+/g, ' ').trim(),
-      url: new URL(link[1], 'https://www.gov.pl').toString(),
+      url: safeUrl(new URL(link[1], 'https://www.gov.pl').toString(), 'gov.pl', `https://www.gov.pl/web/${site}`),
       publishedAt: date ? `${date[3]}-${date[2]}-${date[1]}` : '',
     })
   }

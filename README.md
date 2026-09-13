@@ -58,14 +58,16 @@ Mapy alarmów i GPS pokazują stan z ostatniego runu skryptu (do godziny). Mapa 
 
 ## Podgląd na żywo: Cloudflare Worker (`worker/`)
 
-API ADS-B wymagają nagłówka User-Agent, którego przeglądarka nie ustawi, i limitują częste zapytania (429). Worker jest cienkim proxy z cache:
+Publiczne API ADS-B (adsb.fi, adsb.lol, airplanes.live, OpenSky) nie wysyłają nagłówków CORS i blokują zapytania z adresów wychodzących Cloudflare Workers, więc Worker nie pyta ich bezpośrednio. `GET /mil` zwraca `AirTraffic` (ten sam kształt co w snapshotcie) z pierwszego dostępnego źródła:
 
-- `GET /mil` zwraca `AirTraffic` (ten sam kształt co w snapshotcie); łańcuch źródeł adsb.fi → adsb.lol, filtrowanie i kategoryzacja z `shared/aircraft.ts`.
-- Jedno zapytanie do upstreamu na 20 s niezależnie od liczby odwiedzających (Cache API, nagłówek `X-Cache: HIT/MISS`).
-- Gdy wszystkie upstreamy odpowiedzą 429/5xx, serwowana jest ostatnia dobra odpowiedź do 10 min (`X-Cache: STALE`), a frontend przy błędzie wraca do snapshotu.
+1. własny poller `live-poller/` uruchomiony poza Cloudflare (dane co ~15 s, opcjonalny),
+2. `aircraft.json` z gałęzi `data`, zapisywany przez workflow `aircraft.yml` co 5 minut,
+3. `snapshot.json` z gałęzi `data`, co godzinę.
+
+Filtrowanie do regionu i kategoryzacja są w `shared/aircraft.ts`, wspólnym dla skryptów, pollera i Workera. Odpowiedź jest buforowana 20 s (nagłówek `X-Cache`), a przy awarii źródeł Worker serwuje ostatnią dobrą odpowiedź do 10 min; frontend przy błędzie wraca do snapshotu.
 - Frontend odpytuje Workera co 30 s, tylko gdy karta przeglądarki jest widoczna. Adres podaje zmienna `VITE_LIVE_API_URL`; bez niej mapa pokazuje snapshot.
 
-Lokalnie: `cd worker && npm install && npm run dev` (http://localhost:8787/mil).
+Lokalnie: `cd worker && npm install && npm run dev` (http://localhost:8787/mil). Poller: `LIVE_KEY=<sekret> node live-poller/server.mjs` (Node 23+).
 
 ## Indeks napięcia
 

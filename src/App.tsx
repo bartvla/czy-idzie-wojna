@@ -3,7 +3,7 @@ import type { Snapshot } from './types'
 import { ChartCard } from './components/ChartCard'
 import { Tile } from './components/Tile'
 import { Verdict } from './components/Verdict'
-import { AirRaidCard, AirTrafficCard, GpsJamCard } from './components/Airspace'
+import { AirRaidCard, AirTrafficCard, GpsJamCard, useLiveAirTraffic } from './components/Airspace'
 import { fmt, fmtDate, fmtDayMonth } from './lib/stats'
 
 function useSnapshot() {
@@ -22,7 +22,10 @@ const levelClass = (level: string) =>
   /level [34]|avoid|do not|red|amber/i.test(level) ? 'badge badge--alert' : /level 2|yellow/i.test(level) ? 'badge badge--warn' : 'badge badge--ok'
 
 export default function App() {
-  const { snap, error } = useSnapshot()
+  const { snap: loaded, error } = useSnapshot()
+  const { live, error: liveError } = useLiveAirTraffic()
+  // Dane na żywo z Workera zastępują lotnictwo ze snapshotu wszędzie: w werdykcie, kafelkach i na mapie.
+  const snap = loaded && live ? { ...loaded, airTraffic: live } : loaded
 
   if (error) {
     return (
@@ -50,7 +53,9 @@ export default function App() {
           </h1>
           <p>Twarde wskaźniki zamiast nagłówków: przestrzeń powietrzna, komunikaty instytucji, zakłady, rynki.</p>
         </div>
-        <div className="updated">dane z {new Date(snap.generatedAt).toLocaleString('pl-PL')}</div>
+        <div className="updated" title="Lotnictwo odświeżane co kilka minut; pozostałe dane z ostatniego pobrania">
+          ostatnie pobranie danych: {new Date(snap.generatedAt).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}
+        </div>
       </header>
 
       {/* 1. Werdykt + kluczowe liczby */}
@@ -63,7 +68,7 @@ export default function App() {
         <GpsJamCard data={snap.gpsJam} />
       </div>
       <div className="grid" style={{ gridTemplateColumns: '1fr' }}>
-        <AirTrafficCard data={snap.airTraffic} />
+        <AirTrafficCard data={loaded?.airTraffic} live={live} liveError={liveError} />
       </div>
 
       {/* 4. Decyzje instytucji */}

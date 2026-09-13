@@ -116,8 +116,11 @@ export function GpsJamCard({ data }: { data?: GpsJam }) {
 const LIVE_API = (import.meta.env.VITE_LIVE_API_URL ?? '').replace(/\/$/, '')
 const LIVE_INTERVAL_MS = 30_000
 
-/** Odpytuje Workera co 30 s; gdy nie skonfigurowany lub błąd, zwraca undefined (używamy snapshotu). */
-function useLiveAirTraffic(): { live?: AirTraffic; error?: string; refreshedAt?: Date } {
+/**
+ * Odpytuje Workera co 30 s; gdy nie skonfigurowany lub błąd, zwraca undefined (używamy snapshotu).
+ * Worker serwuje plik odświeżany przez GitHub Actions co ~5 min, więc "na żywo" oznacza tu kilka minut opóźnienia.
+ */
+export function useLiveAirTraffic(): { live?: AirTraffic; error?: string; refreshedAt?: Date } {
   const [state, setState] = useState<{ live?: AirTraffic; error?: string; refreshedAt?: Date }>({})
   useEffect(() => {
     if (!LIVE_API) return
@@ -144,23 +147,29 @@ function useLiveAirTraffic(): { live?: AirTraffic; error?: string; refreshedAt?:
   return state
 }
 
-export function AirTrafficCard({ data: snapshot }: { data?: AirTraffic }) {
-  const { live, error, refreshedAt } = useLiveAirTraffic()
+const timeHM = (iso: string) => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+
+export function AirTrafficCard({ data: snapshot, live, liveError }: { data?: AirTraffic; live?: AirTraffic; liveError?: string }) {
   const data = live ?? snapshot
   if (!data) return <div className="card placeholder">Brak danych o lotnictwie wojskowym.</div>
   const over = data.aircraft.filter((a) => a.overPoland)
   const cats = CATEGORY_ORDER.filter((c) => data.byCategory[c] > 0)
+  const ageMin = Math.max(0, Math.round((Date.now() - new Date(data.fetchedAt).getTime()) / 60_000))
   return (
     <div className="card">
       <div className="card__head">
         <h3 className="card__title">
           Lotnictwo wojskowe (ADS-B){' '}
           {live ? (
-            <span className="badge badge--ok live" title={`odświeżane co ${LIVE_INTERVAL_MS / 1000} s`}>
-              ● na żywo {refreshedAt?.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            <span
+              className={`badge live ${ageMin > 20 ? 'badge--warn' : 'badge--ok'}`}
+              title={`pozycje z ${timeHM(data.fetchedAt)}, plik odświeżany co ok. 5 min, strona sprawdza co ${LIVE_INTERVAL_MS / 1000} s`}
+            >
+              ● {timeHM(data.fetchedAt)}
+              {ageMin > 20 && ` (${ageMin} min temu)`}
             </span>
           ) : LIVE_API ? (
-            <span className="badge badge--warn" title={error}>
+            <span className="badge badge--warn" title={liveError}>
               snapshot
             </span>
           ) : null}
@@ -210,12 +219,12 @@ export function AirTrafficCard({ data: snapshot }: { data?: AirTraffic }) {
         </div>
       )}
       <div className="card__source">
-        Tylko maszyny nadające ADS-B i oznaczone jako wojskowe w bazie adsb.lol; myśliwce w akcji zwykle nie nadają. Sygnałem jest
+        Tylko maszyny nadające ADS-B i oznaczone jako wojskowe w bazie źródła; myśliwce w akcji zwykle nie nadają. Sygnałem jest
         obecność AWACS, tankowców i rozpoznania (RC-135, Global Hawk) oraz nagły wzrost transportowców. Źródło:{' '}
         <a href={data.sourceUrl} target="_blank" rel="noreferrer">
-          adsb.lol
+          {data.source.split(' ')[0]}
         </a>{' '}
-        · {new Date(data.fetchedAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+        · pozycje z {timeHM(data.fetchedAt)}
       </div>
     </div>
   )

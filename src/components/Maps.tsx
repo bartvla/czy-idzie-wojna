@@ -77,7 +77,10 @@ export function UkraineMap({ data }: { data: AirRaid }) {
             onEachFeature={(f, layer) => {
               const r = byName.get((f as OblastFeature).properties.name)
               const name = (f as OblastFeature).properties.name
-              layer.bindTooltip(`${name}: ${r ? (r.alert ? 'ALARM' : 'spokój') : 'brak danych'}`, { sticky: true, className: 'dark' })
+              // bindTooltip przyjmuje HTML; nazwę podajemy jako element tekstowy, żeby nigdy nie była interpretowana jako znaczniki.
+              const label = document.createElement('span')
+              label.textContent = `${name}: ${r ? (r.alert ? 'ALARM' : 'spokój') : 'brak danych'}`
+              layer.bindTooltip(label, { sticky: true, className: 'dark' })
             }}
           />
         )}

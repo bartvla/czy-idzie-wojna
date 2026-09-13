@@ -14,23 +14,28 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 
-permissions:
-  contents: write # push na gałąź data
-  pages: write
-  id-token: write
+# Domyślnie brak uprawnień; każde zadanie dostaje tylko to, czego potrzebuje.
+permissions: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push na gałąź data (token przekazywany jawnie w jednym kroku poniżej)
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nie zostawiaj tokenu w .git/config: kod zależności (npm) i skrypt pobierający nie mają wtedy dostępu do repozytorium.
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # Bez skryptów instalacyjnych: złośliwa aktualizacja zależności nie wykona kodu na maszynie CI.
+      # Jedyne pakiety z takimi skryptami to esbuild i fsevents; oba działają bez nich (binaria z optionalDependencies).
+      - run: npm ci --ignore-scripts
 
       # Poprzednie dane (historia własnych zrzutów, ostatni snapshot) żyją na gałęzi `data`,
       # nadpisywanej jednym commitem, żeby repozytorium nie puchło o 230 KB co godzinę.
@@ -96,6 +101,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

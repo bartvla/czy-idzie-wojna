@@ -4,8 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "vars": {
-    // Originy, które mogą korzystać z proxy (produkcja, GitHub Pages przed podpięciem domeny, dev lokalny).
-    "ALLOWED_ORIGINS": "https://czyidziewojna.pl,https://www.czyidziewojna.pl,https://bartvla.github.io,http://localhost:5173",
-    "CONTACT_URL": "https://czyidziewojna.pl/kontakt"
+    // Originy, które mogą korzystać z proxy. Lokalny wrangler dev przyjmuje każdy origin automatycznie (patrz index.ts).
+    "ALLOWED_ORIGINS": "https://czyidziewojna.pl,https://www.czyidziewojna.pl,https://bartvla.github.io",
+    // Repozytorium, z którego gałęzi data Worker czyta aircraft.json / snapshot.json
+    "DATA_REPO": "bartvla/czy-idzie-wojna"
   }
 }

@@ -98,6 +98,8 @@ export function toAirTraffic(ac: RawAdsbAircraft[], fetchedAt: string, upstream:
   for (const a of ac) {
     if (a.lat == null || a.lon == null) continue
     if (!inBox(a.lat, a.lon, NEAR_BBOX)) continue
+    // Identyfikator ICAO trafia do linków na stronie; przyjmujemy tylko 6 znaków hex (adres 24-bit).
+    if (typeof a.hex !== 'string' || !/^[0-9a-f]{6}$/i.test(a.hex)) continue
     const callsign = (a.flight ?? '').trim()
     const type = (a.t ?? '').trim()
     aircraft.push({
