@@ -36,16 +36,6 @@ export function computeTension(snap: Pick<Snapshot, 'series' | 'odds' | 'advisor
     const p = y10 > 15 ? 15 : y10 > 8 ? 8 : y10 > 3 ? 3 : 0
     add('Rentowność 10Y (30 dni)', p, fmtPct(y10))
   }
-  const vix = s.vix?.points.at(-1)?.value
-  if (vix !== undefined) {
-    const p = vix > 40 ? 15 : vix > 30 ? 10 : vix > 22 ? 4 : 0
-    add('VIX (strach na rynkach)', p, vix.toFixed(1))
-  }
-  const brent = s.brent && changeOverDays(s.brent.points, 30)
-  if (brent !== undefined) {
-    const p = brent > 25 ? 10 : brent > 12 ? 5 : 0
-    add('Ropa Brent (30 dni)', p, fmtPct(brent))
-  }
   const strike = snap.odds.find((o) => /strike on poland/i.test(o.question))
   if (strike) {
     const p = strike.yes > 0.3 ? 25 : strike.yes > 0.15 ? 15 : strike.yes > 0.07 ? 7 : strike.yes > 0.03 ? 3 : 0

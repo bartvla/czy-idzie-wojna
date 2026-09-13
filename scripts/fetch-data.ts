@@ -193,24 +193,6 @@ async function fetchNbp(code: string, id: string, label: string, history: Histor
 }
 
 /* ------------------------------------------------------------------ */
-/* Yahoo Finance chart API – VIX, Brent, złoto                          */
-/* ------------------------------------------------------------------ */
-async function fetchYahoo(symbol: string, id: string, label: string, unit: string): Promise<Series> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d`
-  const json = (await (await http(url)).json()) as {
-    chart: { result?: { timestamp: number[]; indicators: { quote: { close: (number | null)[] }[] } }[]; error?: { description: string } }
-  }
-  const res = json.chart.result?.[0]
-  if (!res) throw new Error(json.chart.error?.description ?? 'brak danych')
-  const points: SeriesPoint[] = []
-  res.timestamp.forEach((t, i) => {
-    const v = res.indicators.quote[0].close[i]
-    if (v != null) points.push({ date: new Date(t * 1000).toISOString().slice(0, 10), value: v })
-  })
-  return mkSeries(id, label, unit, 'Yahoo Finance', `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`, 'daily', points)
-}
-
-/* ------------------------------------------------------------------ */
 /* Rentowności obligacji – bieżąca wartość z TradingView (scanner)      */
 /* + historia miesięczna z FRED/OECD + własne dzienne zrzuty            */
 /* ------------------------------------------------------------------ */
@@ -247,15 +229,13 @@ async function fetchFredMonthly(seriesId: string): Promise<SeriesPoint[]> {
 }
 
 async function fetchYields(history: History): Promise<Series[]> {
-  const closes = await fetchTradingViewCloses(['TVC:PL10Y', 'TVC:US10Y', 'TVC:DE10Y'])
+  const closes = await fetchTradingViewCloses(['TVC:PL10Y'])
   const day = today()
-  const push = (id: string, v: number | undefined) => {
-    if (v === undefined) return
-    history[id] = sortDedupe([...(history[id] ?? []), { date: day, value: v }])
-  }
-  push('pl10y', closes['TVC:PL10Y'])
-  push('us10y', closes['TVC:US10Y'])
-  push('de10y', closes['TVC:DE10Y'])
+  const pl = closes['TVC:PL10Y']
+  if (pl !== undefined) history.pl10y = sortDedupe([...(history.pl10y ?? []), { date: day, value: pl }])
+  // Rentowności USA i Niemiec służyły tylko do usuniętego spreadu PL–Bund.
+  delete history.us10y
+  delete history.de10y
 
   const fredPl = await safe('FRED PL 10Y (miesięcznie)', () => fetchFredMonthly('IRLTLT01PLM156N'))
   // Historia miesięczna OECD do ostatniego miesiąca, potem nasze dzienne zrzuty.
@@ -264,8 +244,6 @@ async function fetchYields(history: History): Promise<Series[]> {
 
   return [
     mkSeries('pl10y', 'Obligacje skarbowe 10Y (rentowność)', '%', 'TradingView (bieżąca) + OECD/FRED (historia miesięczna)', 'https://www.tradingview.com/symbols/TVC-PL10Y/', 'snapshot', merged),
-    mkSeries('us10y', 'US 10Y', '%', 'TradingView', 'https://www.tradingview.com/symbols/TVC-US10Y/', 'snapshot', history.us10y ?? []),
-    mkSeries('de10y', 'Bund 10Y', '%', 'TradingView', 'https://www.tradingview.com/symbols/TVC-DE10Y/', 'snapshot', history.de10y ?? []),
   ]
 }
 
@@ -387,14 +365,11 @@ async function main() {
     /* pierwszy run */
   }
 
-  const [wig20, usdpln, eurpln, vix, brent, gold, yields, odds, advisories, monNews, airRaid, airTraffic, gpsJam] =
+  const [wig20, usdpln, eurpln, yields, odds, advisories, monNews, airRaid, airTraffic, gpsJam] =
     await Promise.all([
     safe('WIG20 (BiznesRadar)', () => fetchWig20(history)),
     safe('USD/PLN (NBP)', () => fetchNbp('usd', 'usdpln', 'USD/PLN', history)),
     safe('EUR/PLN (NBP)', () => fetchNbp('eur', 'eurpln', 'EUR/PLN', history)),
-    safe('VIX (Yahoo)', () => fetchYahoo('^VIX', 'vix', 'VIX', 'pkt')),
-    safe('Brent (Yahoo)', () => fetchYahoo('BZ=F', 'brent', 'Ropa Brent', 'USD')),
-    safe('Złoto (Yahoo)', () => fetchYahoo('GC=F', 'gold', 'Złoto', 'USD/oz')),
     safe('Rentowności (TradingView/FRED)', () => fetchYields(history)),
     safe('Polymarket', () => fetchPolymarket()),
     fetchAdvisories(),
@@ -418,10 +393,12 @@ async function main() {
   if (airRaid) pushHist('air_raid_western', airRaid.western.filter((r) => r.alert).length)
 
   const series: Record<string, Series> = {}
-  for (const s of [wig20, usdpln, eurpln, vix, brent, gold, ...(yields ?? [])]) if (s) series[s.id] = s
+  for (const s of [wig20, usdpln, eurpln, ...(yields ?? [])]) if (s) series[s.id] = s
 
   // Zachowaj poprzednie dane, jeśli dziś pobranie się nie udało (nie psuj strony przez chwilową awarię źródła).
-  if (prev) for (const [id, s] of Object.entries(prev.series)) if (!series[id]) series[id] = s
+  // Tylko serie, które strona faktycznie pokazuje; inaczej usunięte kiedyś serie wracałyby ze starego snapshotu.
+  const SERIES_IDS = ['wig20', 'usdpln', 'eurpln', 'pl10y']
+  if (prev) for (const id of SERIES_IDS) if (!series[id] && prev.series[id]) series[id] = prev.series[id]
 
   const now = new Date().toISOString()
   const partial = {

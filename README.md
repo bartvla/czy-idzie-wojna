@@ -28,8 +28,7 @@ npm run build   # produkcja -> dist/
 | --- | --- | --- | --- |
 | WIG20 (dzienne zamknięcia) | [BiznesRadar](https://www.biznesradar.pl/notowania-historyczne/WIG20) | HTML, 50 sesji/stronę | Stooq ma blokadę anty-botową (proof-of-work w JS), Yahoo `WIG20.WA` nie ma historii, Bankier tylko miesięczne. |
 | USD/PLN, EUR/PLN | [API NBP](https://api.nbp.pl/) | JSON, kurs średni tabeli A | Oficjalne, stabilne, max 255 ostatnich notowań na zapytanie. Brak CORS, stąd pobieranie po stronie skryptu. |
-| Rentowność obligacji 10Y PL/US/DE | [TradingView scanner](https://scanner.tradingview.com/global/scan) (bieżąca) + [FRED `IRLTLT01PLM156N`](https://fred.stlouisfed.org/series/IRLTLT01PLM156N) (historia miesięczna OECD) | JSON / CSV | Brak darmowego, dziennego źródła historii dla PL10Y. Budujemy własną historię ze zrzutów. Alternatywa do sprawdzenia: fixing Treasury BondSpot Poland. |
-| VIX, Brent, złoto | [Yahoo Finance chart API](https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?range=1y&interval=1d) | JSON | Nieoficjalne, ale stabilne od lat. |
+| Rentowność obligacji 10Y PL | [TradingView scanner](https://scanner.tradingview.com/global/scan) (bieżąca) + [FRED `IRLTLT01PLM156N`](https://fred.stlouisfed.org/series/IRLTLT01PLM156N) (historia miesięczna OECD) | JSON / CSV | Brak darmowego, dziennego źródła historii dla PL10Y. Budujemy własną historię ze zrzutów. Alternatywa do sprawdzenia: fixing Treasury BondSpot Poland. |
 | Prawdopodobieństwa zdarzeń | [Polymarket Gamma API](https://gamma-api.polymarket.com/events?slug=nato-article-5-before-2027) | JSON | Rynki: inwazja Rosji na kraj NATO, starcie NATO–Rosja, art. 5, inwazja Rosji na kolejny kraj. Rynek „Russian strike on Poland” jest zamknięty; nowe rynki trzeba dopisać w `POLYMARKET_EVENTS`. |
 | Ostrzeżenia dla podróżnych do Polski | [US State Dept RSS](https://travel.state.gov/_res/rss/TAsTWs.xml), [UK FCDO content API](https://www.gov.uk/api/content/foreign-travel-advice/poland) | XML / JSON | Podniesienie poziomu (Level 3/4, „avoid all travel”) to typowy sygnał przed ewakuacją ambasad. Do dodania: Kanada, Niemcy (AA), Francja. |
 | Komunikaty MON / RCB / MSZ | gov.pl, sekcja „Aktualności” na stronie głównej instytucji | HTML | gov.pl nie ma RSS; podstrony list przekierowują boty na stronę główną portalu, ale strona główna instytucji działa. wojsko-polskie.pl (DORSZ) blokuje boty (Imperva). |
@@ -53,7 +52,7 @@ Kolejność według bezpośredniości i szybkości reakcji sygnału, nie według
 1. **Werdykt** – indeks napięcia z trendem 7-dniowym i cztery kluczowe liczby (ostatni Alert RCB, alarmy w zachodniej Ukrainie, maszyny wojskowe nad Polską, zakłócenia GPS).
 2. **Trzy mapy (Leaflet + kafle CARTO dark)** – obwody Ukrainy ze stanem alarmu (`public/geo/ukr-adm1.json`, geoBoundaries/OSM, ODbL, uproszczone mapshaperem do 21 KB), komórki H3 z zakłóceniami GPS (obrysy liczone w skrypcie, tylko region mapy), pozycje samolotów wojskowych z kursem i popupem.
 3. **Instytucje i dyplomacja** – komunikaty MON/RCB/MSZ, ostrzeżenia dla podróżnych.
-4. **Rynki finansowe**, 5. **Tło globalne**, 6. **Rynki predykcyjne**.
+4. **Rynki finansowe**, 5. **Rynki predykcyjne**.
 
 Mapy alarmów i GPS pokazują stan z ostatniego runu skryptu (do godziny). Mapa lotnictwa ma podgląd na żywo przez Workera (poniżej).
 

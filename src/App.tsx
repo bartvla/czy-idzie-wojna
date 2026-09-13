@@ -4,7 +4,7 @@ import { ChartCard } from './components/ChartCard'
 import { Tile } from './components/Tile'
 import { Verdict } from './components/Verdict'
 import { AirRaidCard, AirTrafficCard, GpsJamCard } from './components/Airspace'
-import { fmt, fmtPct, fmtDate, fmtDayMonth, changeOverDays } from './lib/stats'
+import { fmt, fmtDate, fmtDayMonth } from './lib/stats'
 
 function useSnapshot() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -40,7 +40,6 @@ export default function App() {
   const clash = snap.odds.find((o) => /nato x russia/i.test(o.question))
   const art5 = snap.odds.find((o) => /article 5/i.test(o.question))
   const another = snap.odds.find((o) => /invade another country/i.test(o.question))
-  const spread = s.pl10y && s.de10y ? (s.pl10y.points.at(-1)?.value ?? 0) - (s.de10y.points.at(-1)?.value ?? 0) : undefined
 
   return (
     <main className="container">
@@ -125,26 +124,7 @@ export default function App() {
         {s.eurpln && <ChartCard series={s.eurpln} upIsBad digits={4} color="#b388ff" />}
       </div>
 
-      {/* 6. Tło globalne */}
-      <h2 className="section-title">Tło globalne</h2>
-      <div className="grid grid--tiles">
-        {s.vix && (
-          <Tile
-            label="VIX (indeks strachu)"
-            value={fmt(s.vix.points.at(-1)!.value, 1)}
-            sub={`30 dni: ${fmtPct(changeOverDays(s.vix.points, 30) ?? 0)}`}
-            bar={(s.vix.points.at(-1)!.value / 50) * 100}
-            barColor={s.vix.points.at(-1)!.value > 25 ? 'var(--alert)' : 'var(--ok)'}
-          />
-        )}
-        {s.brent && (
-          <Tile label="Ropa Brent (USD)" value={fmt(s.brent.points.at(-1)!.value, 1)} sub={`30 dni: ${fmtPct(changeOverDays(s.brent.points, 30) ?? 0)}`} />
-        )}
-        {s.gold && <Tile label="Złoto (USD/oz)" value={fmt(s.gold.points.at(-1)!.value, 0)} sub={`30 dni: ${fmtPct(changeOverDays(s.gold.points, 30) ?? 0)}`} />}
-        {spread !== undefined && <Tile label="Spread PL 10Y − Bund 10Y" value={`${fmt(spread, 2)} pp`} sub="premia za ryzyko Polski vs Niemcy" />}
-      </div>
-
-      {/* 7. Rynki predykcyjne */}
+      {/* 6. Rynki predykcyjne */}
       <h2 className="section-title">Rynki predykcyjne (Polymarket)</h2>
       <div className="grid grid--tiles">
         {[invade, clash, art5, another]
@@ -161,7 +141,7 @@ export default function App() {
             />
           ))}
         {snap.odds.length === 0 && <div className="placeholder">Brak danych z Polymarket.</div>}
-      </div>    
+      </div>
 
       <footer className="footer">
         <p>
