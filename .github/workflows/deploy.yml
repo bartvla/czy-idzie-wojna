@@ -80,6 +80,8 @@ jobs:
           cp dist/index.html dist/404.html
         env:
           CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+          # Klucz CARTO trafia do JS strony (kafle ładuje przeglądarka), sekret trzyma go tylko poza repozytorium.
+          VITE_CARTO_KEY: ${{ secrets.CARTO_API_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

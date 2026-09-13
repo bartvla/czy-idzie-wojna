@@ -5,13 +5,38 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { AircraftCategory, AirRaid, AirTraffic, GpsJam } from '../types'
 import { fmt } from '../lib/stats'
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-const ATTRIB = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+// CARTO wymaga darmowego klucza (bez niego wypala napis „API KEY REQUIRED” w kaflach).
+// Bez klucza używamy ciemnego podkładu Esri z osobną warstwą etykiet.
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY ?? ''
+
+function BaseTiles() {
+  if (CARTO_KEY) {
+    return (
+      <TileLayer
+        url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`}
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        subdomains="abcd"
+        maxZoom={12}
+      />
+    )
+  }
+  const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas'
+  return (
+    <>
+      <TileLayer
+        url={`${esri}/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`}
+        attribution="Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors"
+        maxZoom={12}
+      />
+      <TileLayer url={`${esri}/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`} maxZoom={12} pane="shadowPane" />
+    </>
+  )
+}
 
 function Base({ children, center, zoom, tall }: { children: React.ReactNode; center: [number, number]; zoom: number; tall?: boolean }) {
   return (
     <MapContainer center={center} zoom={zoom} scrollWheelZoom={false} className={`map${tall ? ' map--tall' : ''}`} preferCanvas>
-      <TileLayer url={TILES} attribution={ATTRIB} subdomains="abcd" maxZoom={12} />
+      <BaseTiles />
       {children}
     </MapContainer>
   )

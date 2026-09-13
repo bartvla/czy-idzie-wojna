@@ -57,7 +57,7 @@ export function ChartCard({ series, upIsBad, digits = 2, color = '#4cc9f0' }: Pr
           ))}
         </span>
       </div>
-      <div style={{ width: '100%', height: 300 }}>
+      <div style={{ width: '100%', height: 230 }}>
         <ResponsiveContainer>
           <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
