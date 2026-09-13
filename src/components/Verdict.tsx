@@ -1,5 +1,6 @@
 import type { Snapshot } from '../types'
 import { computeTension, tensionLevel } from '../lib/tension'
+import { fmtDayMonth } from '../lib/stats'
 
 function KeyNumber({ label, value, sub, color, href }: { label: string; value: string; sub?: string; color?: string; href?: string }) {
   return (
@@ -69,7 +70,7 @@ export function Verdict({ snap }: { snap: Snapshot }) {
       <div className="keys">
         <KeyNumber
           label="Ostatni Alert RCB"
-          value={lastRcb ? lastRcb.publishedAt.slice(5).replace('-', '.') : 'brak'}
+          value={lastRcb ? fmtDayMonth(lastRcb.publishedAt) : 'brak'}
           sub={lastRcb ? lastRcb.title.replace(/^Alert RCB\s*-?\s*/i, '') : 'w ostatnich komunikatach'}
           color={lastRcb && /atak|zagrożenie|rakiet|dron/i.test(lastRcb.title) ? 'var(--alert)' : undefined}
           href={lastRcb?.url}

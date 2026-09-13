@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Series } from '../types'
-import { changeOverDays, fmt, fmtPct, last, sliceDays } from '../lib/stats'
+import { changeOverDays, fmt, fmtDate, fmtPct, last, sliceDays } from '../lib/stats'
 
 interface Props {
   series: Series
@@ -15,12 +15,26 @@ const RANGES: { label: string; days: number }[] = [
   { label: '1M', days: 31 },
   { label: '3M', days: 92 },
   { label: '1R', days: 366 },
-  { label: 'MAX', days: 36500 },
+  { label: '5L', days: 1827 },
+  { label: '10L', days: 3653 },
 ]
+
+/**
+ * Oś X jest liczbowa (znacznik czasu), a nie kategoryczna: dane mieszają punkty dzienne
+ * (ostatni rok) z tygodniowymi (starsze lata), więc odstępy muszą wynikać z dat, nie z kolejności.
+ * Przy długich zakresach dzień i miesiąc są nieczytelne; pokazujemy miesiąc i rok.
+ */
+const tickLabel = (ts: number, days: number) => {
+  const iso = new Date(ts).toISOString()
+  return days > 400 ? `${iso.slice(5, 7)}.${iso.slice(2, 4)}` : `${iso.slice(8, 10)}.${iso.slice(5, 7)}`
+}
 
 export function ChartCard({ series, upIsBad, digits = 2, color = '#4cc9f0' }: Props) {
   const [range, setRange] = useState(RANGES[2])
-  const points = useMemo(() => sliceDays(series.points, range.days), [series.points, range.days])
+  const points = useMemo(
+    () => sliceDays(series.points, range.days).map((p) => ({ ...p, ts: Date.parse(p.date) })),
+    [series.points, range.days],
+  )
   const latest = last(series.points)
   const d7 = changeOverDays(series.points, 7)
   const d30 = changeOverDays(series.points, 30)
@@ -67,12 +81,15 @@ export function ChartCard({ series, upIsBad, digits = 2, color = '#4cc9f0' }: Pr
               </linearGradient>
             </defs>
             <XAxis
-              dataKey="date"
+              dataKey="ts"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
               tick={{ fill: 'var(--muted)', fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               minTickGap={40}
-              tickFormatter={(d: string) => d.slice(5)}
+              tickFormatter={(ts: number) => tickLabel(ts, range.days)}
             />
             <YAxis
               domain={['auto', 'auto']}
@@ -85,6 +102,7 @@ export function ChartCard({ series, upIsBad, digits = 2, color = '#4cc9f0' }: Pr
             <Tooltip
               contentStyle={{ background: 'var(--bg-elev2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: 'var(--muted)' }}
+              labelFormatter={(ts) => new Date(Number(ts)).toLocaleDateString('pl-PL')}
               formatter={(v) => [fmt(Number(v), digits) + ' ' + series.unit, series.label]}
             />
             <Area
@@ -106,7 +124,7 @@ export function ChartCard({ series, upIsBad, digits = 2, color = '#4cc9f0' }: Pr
         </a>
         {series.frequency === 'monthly' && ' · dane miesięczne'}
         {series.frequency === 'snapshot' && ' · własne dzienne zrzuty'}
-        {' · '}aktualizacja {series.updatedAt.slice(0, 10)}
+        {' · '}aktualizacja {fmtDate(series.updatedAt)}
       </div>
     </div>
   )

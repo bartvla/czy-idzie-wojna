@@ -4,7 +4,7 @@ import { ChartCard } from './components/ChartCard'
 import { Tile } from './components/Tile'
 import { Verdict } from './components/Verdict'
 import { AirRaidCard, AirTrafficCard, GpsJamCard } from './components/Airspace'
-import { fmt, fmtPct, changeOverDays } from './lib/stats'
+import { fmt, fmtPct, fmtDate, fmtDayMonth, changeOverDays } from './lib/stats'
 
 function useSnapshot() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -80,7 +80,7 @@ export default function App() {
                 <li key={n.url}>
                   <span className="when">
                     <span className={/alert rcb|zagrożenie|atak/i.test(n.title) ? 'badge badge--alert' : 'badge badge--muted'}>{n.source}</span>{' '}
-                    {n.publishedAt.slice(5).replace('-', '.')}
+                    {fmtDayMonth(n.publishedAt)}
                   </span>
                   <a href={n.url} target="_blank" rel="noreferrer">
                     {n.title}
@@ -106,7 +106,7 @@ export default function App() {
                 <b>{a.country}</b>
                 <span className={levelClass(a.level)}>{a.level}</span>
                 <a className="when" href={a.url} target="_blank" rel="noreferrer" title={a.summary}>
-                  {a.updatedAt.slice(0, 10)}
+                  {fmtDate(a.updatedAt)}
                 </a>
               </li>
             ))}

@@ -63,42 +63,133 @@ const mkSeries = (
 ): Series => ({ id, label, unit, source, sourceUrl, frequency, updatedAt: new Date().toISOString(), points: sortDedupe(points) })
 
 /* ------------------------------------------------------------------ */
-/* WIG20 – BiznesRadar (tabela HTML, 50 sesji/stronę)                   */
+/* Historia 10 lat: pełne dane dzienne w history.json (gałąź data),     */
+/* do snapshotu dzienne z ostatniego roku + tygodniowe ze starszych lat  */
 /* ------------------------------------------------------------------ */
-async function fetchWig20(pages = 6): Promise<Series> {
-  const points: SeriesPoint[] = []
-  for (let page = 1; page <= pages; page++) {
-    const url = `https://www.biznesradar.pl/notowania-historyczne/WIG20${page > 1 ? `,${page}` : ''}`
-    const html = await (await http(url)).text()
-    const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) =>
-      m[1]
-        .replace(/<[^>]+>/g, '|')
-        .replace(/\s+/g, ' ')
-        .replace(/\|+/g, '|')
-        .trim(),
-    )
-    for (const row of rows) {
-      // |11.09.2026| |4124.76| |4151.38| |4120.28| |4139.25| |3 028 413 403|
-      const cells = row.split('|').map((c) => c.trim()).filter(Boolean)
-      const m = cells[0]?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
-      if (!m || cells.length < 5) continue
-      const close = Number(cells[4].replace(/\s/g, '').replace(',', '.'))
-      if (Number.isFinite(close)) points.push({ date: `${m[3]}-${m[2]}-${m[1]}`, value: close })
-    }
-    await new Promise((r) => setTimeout(r, 400))
+const HISTORY_YEARS = 10
+const DAILY_DAYS_IN_CHART = 400
+const DAY_MS = 86_400_000
+
+const isoDaysAgo = (days: number) => new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10)
+const historyStart = () => {
+  const d = new Date()
+  d.setUTCFullYear(d.getUTCFullYear() - HISTORY_YEARS)
+  return d.toISOString().slice(0, 10)
+}
+const trimFrom = (points: SeriesPoint[], from: string) => points.filter((p) => p.date >= from)
+
+/** Czy zapisana historia nie sięga początku okna (z zapasem na święta i weekendy)? */
+const needsBackfill = (points: SeriesPoint[], start: string) => {
+  if (points.length === 0) return true
+  const slackDays = 14
+  return new Date(points[0].date).getTime() - new Date(start).getTime() > slackDays * DAY_MS
+}
+
+/** Dzienne punkty z ostatnich DAILY_DAYS_IN_CHART dni, starsze jako ostatni punkt każdego tygodnia. */
+function downsampleForChart(points: SeriesPoint[]): SeriesPoint[] {
+  const cutoff = isoDaysAgo(DAILY_DAYS_IN_CHART)
+  const weekly = new Map<number, SeriesPoint>()
+  const recent: SeriesPoint[] = []
+  for (const p of points) {
+    if (p.date >= cutoff) recent.push(p)
+    else weekly.set(Math.floor((new Date(p.date).getTime() / DAY_MS + 3) / 7), p)
   }
-  if (points.length < 20) throw new Error('za mało wierszy – zmieniła się struktura strony?')
-  return mkSeries('wig20', 'WIG20', 'pkt', 'BiznesRadar / GPW', 'https://www.biznesradar.pl/notowania-historyczne/WIG20', 'daily', points)
+  return [...weekly.values(), ...recent]
 }
 
 /* ------------------------------------------------------------------ */
-/* Kursy NBP (tabela A, kurs średni) – max 255 ostatnich notowań        */
+/* WIG20 – BiznesRadar (tabela HTML, 50 sesji/stronę)                   */
 /* ------------------------------------------------------------------ */
-async function fetchNbp(code: string, id: string, label: string): Promise<Series> {
-  const url = `https://api.nbp.pl/api/exchangerates/rates/a/${code}/last/255/?format=json`
-  const json = (await (await http(url)).json()) as { rates: { effectiveDate: string; mid: number }[] }
-  const points = json.rates.map((r) => ({ date: r.effectiveDate, value: r.mid }))
-  return mkSeries(id, label, 'PLN', 'NBP (kurs średni, tabela A)', 'https://api.nbp.pl/', 'daily', points)
+function parseBiznesRadarRows(html: string): SeriesPoint[] {
+  const points: SeriesPoint[] = []
+  for (const m of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)) {
+    // |11.09.2026| |4124.76| |4151.38| |4120.28| |4139.25| |3 028 413 403|
+    const cells = m[1]
+      .replace(/<[^>]+>/g, '|')
+      .replace(/\s+/g, ' ')
+      .split('|')
+      .map((c) => c.trim())
+      .filter(Boolean)
+    const d = cells[0]?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+    if (!d || cells.length < 5) continue
+    const close = Number(cells[4].replace(/\s/g, '').replace(',', '.'))
+    if (Number.isFinite(close)) points.push({ date: `${d[3]}-${d[2]}-${d[1]}`, value: close })
+  }
+  return points
+}
+
+/**
+ * Pierwsze uruchomienie (albo luka w historii): strony wstecz aż do początku okna 10 lat (~51 stron, raz).
+ * Kolejne uruchomienia: tylko 2 najnowsze strony, dopisywane do historii.
+ */
+async function fetchWig20(history: History): Promise<Series> {
+  const start = historyStart()
+  const stored = history.wig20_daily ?? []
+  const backfill = needsBackfill(stored, start)
+  const maxPages = backfill ? 60 : 2
+  const fresh: SeriesPoint[] = []
+  for (let page = 1; page <= maxPages; page++) {
+    const url = `https://www.biznesradar.pl/notowania-historyczne/WIG20${page > 1 ? `,${page}` : ''}`
+    const rows = parseBiznesRadarRows(await (await http(url)).text())
+    if (rows.length === 0) break
+    fresh.push(...rows)
+    if (rows.some((p) => p.date < start)) break
+    await new Promise((r) => setTimeout(r, 400))
+  }
+  if (fresh.length < 20) throw new Error('za mało wierszy – zmieniła się struktura strony?')
+  if (backfill) console.log(`  WIG20: uzupełniono historię (${fresh.length} sesji)`)
+  history.wig20_daily = trimFrom(sortDedupe([...stored, ...fresh]), start)
+  return mkSeries(
+    'wig20',
+    'WIG20',
+    'pkt',
+    'BiznesRadar / GPW',
+    'https://www.biznesradar.pl/notowania-historyczne/WIG20',
+    'daily',
+    downsampleForChart(history.wig20_daily),
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Kursy NBP (tabela A, kurs średni)                                    */
+/* API: max 255 notowań w zapytaniu "last", max 367 dni w zakresie dat,  */
+/* dane od 2002-01-02. Historię 10 lat pobieramy w kawałkach po 366 dni. */
+/* ------------------------------------------------------------------ */
+async function fetchNbpRange(code: string, from: string, to: string): Promise<SeriesPoint[]> {
+  const out: SeriesPoint[] = []
+  let cursor = new Date(from)
+  const end = new Date(to)
+  while (cursor <= end) {
+    const chunkEnd = new Date(Math.min(cursor.getTime() + 365 * DAY_MS, end.getTime()))
+    const a = cursor.toISOString().slice(0, 10)
+    const b = chunkEnd.toISOString().slice(0, 10)
+    try {
+      const json = (await (await http(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/${a}/${b}/?format=json`)).json()) as {
+        rates: { effectiveDate: string; mid: number }[]
+      }
+      out.push(...json.rates.map((r) => ({ date: r.effectiveDate, value: r.mid })))
+    } catch (e) {
+      // 404 = brak notowań w zakresie (np. same dni wolne) – to nie błąd
+      if (!(e as Error).message.startsWith('404')) throw e
+    }
+    cursor = new Date(chunkEnd.getTime() + DAY_MS)
+  }
+  return out
+}
+
+async function fetchNbp(code: string, id: string, label: string, history: History): Promise<Series> {
+  const key = `${id}_daily`
+  const start = historyStart()
+  const stored = history[key] ?? []
+  const backfill = needsBackfill(stored, start)
+  // Przy dociąganiu bierzemy tydzień zakładki, żeby złapać ewentualne korekty tabel.
+  const lastStored = stored.at(-1)?.date
+  const from = backfill || !lastStored ? start : new Date(new Date(lastStored).getTime() - 7 * DAY_MS).toISOString().slice(0, 10)
+  const fresh = await fetchNbpRange(code, from, today())
+  if (backfill) console.log(`  ${label}: uzupełniono historię (${fresh.length} notowań)`)
+  history[key] = trimFrom(sortDedupe([...stored, ...fresh]), start)
+  if (history[key].length < 20) throw new Error('za mało notowań')
+  return mkSeries(id, label, 'PLN', 'NBP (kurs średni, tabela A)', 'https://api.nbp.pl/', 'daily', downsampleForChart(history[key]))
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +260,7 @@ async function fetchYields(history: History): Promise<Series[]> {
   const fredPl = await safe('FRED PL 10Y (miesięcznie)', () => fetchFredMonthly('IRLTLT01PLM156N'))
   // Historia miesięczna OECD do ostatniego miesiąca, potem nasze dzienne zrzuty.
   const lastMonthly = fredPl?.at(-1)?.date ?? '0000'
-  const merged = [...(fredPl ?? []), ...(history.pl10y ?? []).filter((p) => p.date > lastMonthly)]
+  const merged = trimFrom([...(fredPl ?? []), ...(history.pl10y ?? []).filter((p) => p.date > lastMonthly)], historyStart())
 
   return [
     mkSeries('pl10y', 'Obligacje skarbowe 10Y (rentowność)', '%', 'TradingView (bieżąca) + OECD/FRED (historia miesięczna)', 'https://www.tradingview.com/symbols/TVC-PL10Y/', 'snapshot', merged),
@@ -314,9 +405,9 @@ async function main() {
 
   const [wig20, usdpln, eurpln, vix, brent, gold, yields, odds, advisories, gdelt, monNews, airRaid, airTraffic, gpsJam] =
     await Promise.all([
-    safe('WIG20 (BiznesRadar)', () => fetchWig20()),
-    safe('USD/PLN (NBP)', () => fetchNbp('usd', 'usdpln', 'USD/PLN')),
-    safe('EUR/PLN (NBP)', () => fetchNbp('eur', 'eurpln', 'EUR/PLN')),
+    safe('WIG20 (BiznesRadar)', () => fetchWig20(history)),
+    safe('USD/PLN (NBP)', () => fetchNbp('usd', 'usdpln', 'USD/PLN', history)),
+    safe('EUR/PLN (NBP)', () => fetchNbp('eur', 'eurpln', 'EUR/PLN', history)),
     safe('VIX (Yahoo)', () => fetchYahoo('^VIX', 'vix', 'VIX', 'pkt')),
     safe('Brent (Yahoo)', () => fetchYahoo('BZ=F', 'brent', 'Ropa Brent', 'USD')),
     safe('Złoto (Yahoo)', () => fetchYahoo('GC=F', 'gold', 'Złoto', 'USD/oz')),
@@ -371,7 +462,8 @@ async function main() {
     errors,
   }
 
-  await writeFile(HISTORY_FILE, JSON.stringify(history, null, 1))
+  // Zwarty JSON: pełna dzienna historia 10 lat to kilka tysięcy punktów na serię.
+  await writeFile(HISTORY_FILE, JSON.stringify(history))
   await writeFile(SNAPSHOT_FILE, JSON.stringify(snapshot))
   console.log(`\nZapisano ${SNAPSHOT_FILE} (${Object.keys(series).length} serii, ${errors.length} błędów)`)
 }

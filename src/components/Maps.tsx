@@ -3,7 +3,7 @@ import L from 'leaflet'
 import { GeoJSON, MapContainer, Marker, Polygon, Popup, TileLayer, Tooltip } from 'react-leaflet'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { AircraftCategory, AirRaid, AirTraffic, GpsJam } from '../types'
-import { fmt } from '../lib/stats'
+import { fmt, fmtDate } from '../lib/stats'
 
 // CARTO wymaga darmowego klucza (bez niego wypala napis „API KEY REQUIRED” w kaflach).
 // Bez klucza używamy ciemnego podkładu Esri z osobną warstwą etykiet.
@@ -140,7 +140,7 @@ export function GpsJamMap({ data }: { data: GpsJam }) {
           <i style={{ background: '#f5b942' }} />
           2–10%
         </span>
-        <span>komórki poniżej 2% nie są rysowane · dane za {data.date}</span>
+        <span>komórki poniżej 2% nie są rysowane · dane za {fmtDate(data.date)}</span>
       </div>
     </>
   )

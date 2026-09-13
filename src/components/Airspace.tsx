@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AircraftCategory, AirRaid, AirTraffic, GpsJam } from '../types'
-import { fmt } from '../lib/stats'
+import { fmt, fmtDate } from '../lib/stats'
 import { AircraftMap, GpsJamMap, UkraineMap } from './Maps'
 
 const CATEGORY_LABEL: Record<AircraftCategory, string> = {
@@ -73,7 +73,7 @@ export function GpsJamCard({ data }: { data?: GpsJam }) {
         </span>
       </div>
       <div className="card__meta">
-        <span>odsetek komórek siatki z ≥10% samolotów zgłaszających złą nawigację, {data.date}</span>
+        <span>odsetek komórek siatki z ≥10% samolotów zgłaszających złą nawigację, {fmtDate(data.date)}</span>
       </div>
       <GpsJamMap data={data} />
       <div className="jam">

@@ -41,3 +41,13 @@ export function fmtPct(value: number, digits = 1): string {
   const sign = value > 0 ? '+' : ''
   return `${sign}${fmt(value, digits)}%`
 }
+
+/** ISO (YYYY-MM-DD lub pełny timestamp) -> "13.09". Zostawia niepoprawny tekst bez zmian. */
+export function fmtDayMonth(iso: string): string {
+  return /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : iso
+}
+
+/** ISO (YYYY-MM-DD lub pełny timestamp) -> "13.09.2026", gdy rok ma znaczenie. */
+export function fmtDate(iso: string): string {
+  return /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${fmtDayMonth(iso)}.${iso.slice(0, 4)}` : iso
+}
