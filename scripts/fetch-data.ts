@@ -339,22 +339,6 @@ async function fetchAdvisories(): Promise<Advisory[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/* GDELT – natężenie doniesień medialnych "Poland military"             */
-/* ------------------------------------------------------------------ */
-async function fetchGdelt(): Promise<{ label: string; points: SeriesPoint[] }> {
-  const url =
-    'https://api.gdeltproject.org/api/v2/doc/doc?query=(Poland%20OR%20Polska)%20military&mode=timelinevol&format=json&timespan=30d'
-  const json = (await (await http(url)).json()) as { timeline: { data: { date: string; value: number }[] }[] }
-  const byDay = new Map<string, number[]>()
-  for (const d of json.timeline[0].data) {
-    const day = `${d.date.slice(0, 4)}-${d.date.slice(4, 6)}-${d.date.slice(6, 8)}`
-    byDay.set(day, [...(byDay.get(day) ?? []), d.value])
-  }
-  const points = [...byDay.entries()].map(([date, vals]) => ({ date, value: vals.reduce((a, b) => a + b, 0) / vals.length }))
-  return { label: 'GDELT: udział doniesień o wojsku/Polsce w światowych mediach (%)', points: sortDedupe(points) }
-}
-
-/* ------------------------------------------------------------------ */
 /* Komunikaty gov.pl (MON, RCB, MSZ) – lista "Aktualności" ze strony      */
 /* głównej danej instytucji (gov.pl nie udostępnia RSS)                   */
 /* ------------------------------------------------------------------ */
@@ -403,7 +387,7 @@ async function main() {
     /* pierwszy run */
   }
 
-  const [wig20, usdpln, eurpln, vix, brent, gold, yields, odds, advisories, gdelt, monNews, airRaid, airTraffic, gpsJam] =
+  const [wig20, usdpln, eurpln, vix, brent, gold, yields, odds, advisories, monNews, airRaid, airTraffic, gpsJam] =
     await Promise.all([
     safe('WIG20 (BiznesRadar)', () => fetchWig20(history)),
     safe('USD/PLN (NBP)', () => fetchNbp('usd', 'usdpln', 'USD/PLN', history)),
@@ -414,7 +398,6 @@ async function main() {
     safe('Rentowności (TradingView/FRED)', () => fetchYields(history)),
     safe('Polymarket', () => fetchPolymarket()),
     fetchAdvisories(),
-    safe('GDELT', () => fetchGdelt()),
     fetchAllNews(),
     safe('Alarmy lotnicze (alerts.com.ua)', () => fetchAirRaid(http)),
     safe('Lotnictwo wojskowe (adsb.lol)', () => fetchAirTraffic(http)),
@@ -445,7 +428,6 @@ async function main() {
     series,
     odds: odds ?? prev?.odds ?? [],
     advisories: advisories.length ? advisories : (prev?.advisories ?? []),
-    gdelt: gdelt ?? prev?.gdelt,
     news: monNews.length ? monNews : (prev?.news ?? []),
     airRaid: airRaid ?? prev?.airRaid,
     airTraffic: airTraffic ?? prev?.airTraffic,

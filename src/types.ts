@@ -123,7 +123,6 @@ export interface Snapshot {
   series: Record<string, Series>
   odds: OddsMarket[]
   advisories: Advisory[]
-  gdelt?: { label: string; points: SeriesPoint[] }
   news: NewsItem[]
   airRaid?: AirRaid
   airTraffic?: AirTraffic
