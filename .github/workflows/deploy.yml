@@ -1,0 +1,94 @@
+name: Dane + build + GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # co godzinę w dni robocze, co 3 h w weekend (UTC)
+    - cron: '7 * * * 1-5'
+    - cron: '7 */3 * * 0,6'
+  workflow_dispatch:
+
+# Jeden run naraz: kolejny czeka, zamiast nadpisywać gałąź data w połowie pracy.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push na gałąź data
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Poprzednie dane (historia własnych zrzutów, ostatni snapshot) żyją na gałęzi `data`,
+      # nadpisywanej jednym commitem, żeby repozytorium nie puchło o 230 KB co godzinę.
+      - name: Pobierz poprzednie dane z gałęzi data
+        run: |
+          if git fetch --depth=1 origin data 2>/dev/null; then
+            git checkout origin/data -- public/data
+            echo "przywrócono public/data z gałęzi data"
+          else
+            echo "brak gałęzi data – pierwszy run"
+          fi
+
+      - name: Pobierz świeże dane
+        run: npm run fetch
+
+      - name: Zapisz dane na gałęzi data (jeden commit, force push)
+        run: |
+          set -e
+          tmp=$(mktemp -d)
+          cp -r public/data/. "$tmp/"
+          cd "$tmp"
+          git init -q -b data
+          git config user.name "data-bot"
+          git config user.email "data-bot@users.noreply.github.com"
+          git add .
+          git commit -q -m "data: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bez własnej domeny strona żyje pod https://<login>.github.io/<repo>/ i potrzebuje ścieżki bazowej.
+      # Gdy w ustawieniach repo (Settings → Secrets and variables → Actions → Variables) ustawisz
+      # zmienną CUSTOM_DOMAIN=czyidziewojna.pl, build dostaje bazę "/" i plik CNAME.
+      - name: Build
+        run: |
+          if [ -n "${CUSTOM_DOMAIN}" ]; then
+            export VITE_BASE="/"
+          else
+            export VITE_BASE="/${GITHUB_REPOSITORY#*/}/"
+          fi
+          echo "VITE_BASE=${VITE_BASE}"
+          npm run build
+          if [ -n "${CUSTOM_DOMAIN}" ]; then echo "${CUSTOM_DOMAIN}" > dist/CNAME; fi
+          # SPA na Pages: 404 -> index, żeby odświeżenie podstrony nie dawało błędu
+          cp dist/index.html dist/404.html
+        env:
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
