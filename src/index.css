@@ -209,7 +209,6 @@ a:hover { text-decoration: underline; }
 .errors { color: var(--warn); font-size: 12.5px; }
 
 @media (max-width: 640px) {
-  .verdict__main { grid-template-columns: 1fr; }
   .brand h1 { font-size: 24px; }
 }
 
@@ -249,6 +248,14 @@ table.ac tr:not(.ac--pl) td { color: var(--muted); }
 /* ---------- verdict: key numbers ---------- */
 .verdict__main { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; }
 .verdict h2 .trend { font-size: 13px; font-weight: 500; margin-left: 12px; font-family: var(--mono); }
+
+/* Wąski ekran: ocena na górze, wyśrodkowana, tekst pod nią na całą szerokość.
+   Musi stać po bazowej regule .verdict__main, inaczej zostanie przez nią nadpisana. */
+@media (max-width: 720px) {
+  .verdict__main { grid-template-columns: 1fr; gap: 14px; }
+  .verdict .gauge { justify-self: center; }
+  .verdict h2 .trend { display: block; margin: 4px 0 0; }
+}
 .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .key { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); min-width: 0; }
 .key__label { color: var(--muted); font-size: 12px; }
