@@ -289,3 +289,25 @@ a.key__sub { color: var(--muted); }
 .advisory .when { margin-left: auto; }
 
 .badge.live { font-family: var(--mono); font-weight: 500; margin-left: 6px; vertical-align: 2px; }
+
+/* Recharts 3 nadaje wykresowi tabindex (nawigacja strzałkami); po kliknięciu przeglądarka
+   rysowała biały obrys fokusu. Obrys usunięty, obsługa klawiatury zostaje. */
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible {
+  outline: none;
+}
+
+/* To samo dla map Leaflet: kontener (przesuwanie strzałkami), ikony samolotów
+   i przyciski przybliżenia przyjmują fokus po kliknięciu. */
+.leaflet-container:focus,
+.leaflet-container:focus-visible,
+.leaflet-marker-icon:focus,
+.leaflet-marker-icon:focus-visible,
+.leaflet-interactive:focus,
+.leaflet-interactive:focus-visible,
+.leaflet-control a:focus,
+.leaflet-control a:focus-visible {
+  outline: none;
+}
