@@ -28,3 +28,10 @@ dist-ssr
 
 # Prywatne notatki (konfiguracja, następne kroki)
 instructions.md
+
+# Wszystkie pliki środowiskowe są lokalne; konfiguracja CI jest w ustawieniach repozytorium GitHub
+.env
+.env.*
+
+# Lokalna konfiguracja narzędzi
+.claude/

@@ -80,7 +80,13 @@ jobs:
           cp dist/index.html dist/404.html
         env:
           CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
-          # Klucz CARTO trafia do JS strony (kafle ładuje przeglądarka), sekret trzyma go tylko poza repozytorium.
+          # Wszystkie wartości konfiguracyjne pochodzą z ustawień repozytorium, nie z plików .env w repo.
+          # Settings → Secrets and variables → Actions:
+          #   Variables: VITE_LIVE_API_URL (adres Workera)
+          #   Secrets:   CLOUDFLARE_ANALYTICS_TOKEN, CARTO_API_KEY (opcjonalny)
+          # Uwaga: token analityki i klucz CARTO i tak trafiają do HTML/JS strony; sekrety trzymają je tylko poza repozytorium.
+          VITE_LIVE_API_URL: ${{ vars.VITE_LIVE_API_URL }}
+          CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
           VITE_CARTO_KEY: ${{ secrets.CARTO_API_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
