@@ -24,13 +24,28 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)} dni temu`
 }
 
-export function AirRaidCard({ data }: { data?: AirRaid }) {
+const timeHM = (iso: string) => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+const ageMinutes = (iso: string) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000))
+
+export function AirRaidCard({ data, live }: { data?: AirRaid; live?: boolean }) {
   if (!data) return <div className="card placeholder">Brak danych o alarmach lotniczych.</div>
   const active = data.western.filter((r) => r.alert)
+  const ageMin = ageMinutes(data.fetchedAt)
   return (
     <div className="card">
       <div className="card__head">
-        <h3 className="card__title">Alarmy lotnicze w zachodniej Ukrainie</h3>
+        <h3 className="card__title">
+          Alarmy lotnicze w zachodniej Ukrainie{' '}
+          {live && (
+            <span
+              className={`badge live ${ageMin > 10 ? 'badge--warn' : 'badge--ok'}`}
+              title={`stan z ${timeHM(data.fetchedAt)}, strona sprawdza co ${LIVE_INTERVAL_MS / 1000} s`}
+            >
+              ● {timeHM(data.fetchedAt)}
+              {ageMin > 10 && ` (${ageMin} min temu)`}
+            </span>
+          )}
+        </h3>
         <span className={`badge ${active.length ? 'badge--alert' : 'badge--ok'}`}>
           {active.length} / {data.western.length} obwodów
         </span>
@@ -55,7 +70,7 @@ export function AirRaidCard({ data }: { data?: AirRaid }) {
         <a href={data.sourceUrl} target="_blank" rel="noreferrer">
           {data.source}
         </a>{' '}
-        · {new Date(data.fetchedAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+        · stan z {timeHM(data.fetchedAt)}
       </div>
     </div>
   )
@@ -116,21 +131,34 @@ export function GpsJamCard({ data }: { data?: GpsJam }) {
 const LIVE_API = (import.meta.env.VITE_LIVE_API_URL ?? '').replace(/\/$/, '')
 const LIVE_INTERVAL_MS = 30_000
 
+export interface LiveData {
+  airTraffic?: AirTraffic
+  airRaid?: AirRaid
+  error?: string
+  refreshedAt?: Date
+}
+
 /**
- * Odpytuje Workera co 30 s; gdy nie skonfigurowany lub błąd, zwraca undefined (używamy snapshotu).
- * Worker serwuje plik odświeżany przez GitHub Actions co ~5 min, więc "na żywo" oznacza tu kilka minut opóźnienia.
+ * Odpytuje Workera (GET /live: samoloty + alarmy w jednej odpowiedzi) co 30 s, tylko gdy karta jest widoczna.
+ * Gdy Worker nie jest skonfigurowany albo nie odpowiada, pola zostają puste i strona używa snapshotu.
+ * Jeśli w danej odpowiedzi brakuje jednej części, zostaje jej poprzednia wartość (wiek widać po fetchedAt).
  */
-export function useLiveAirTraffic(): { live?: AirTraffic; error?: string; refreshedAt?: Date } {
-  const [state, setState] = useState<{ live?: AirTraffic; error?: string; refreshedAt?: Date }>({})
+export function useLiveData(): LiveData {
+  const [state, setState] = useState<LiveData>({})
   useEffect(() => {
     if (!LIVE_API) return
     let stopped = false
     const tick = async () => {
       try {
-        const r = await fetch(`${LIVE_API}/mil`, { cache: 'no-store' })
+        const r = await fetch(`${LIVE_API}/live`, { cache: 'no-store' })
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        const live = (await r.json()) as AirTraffic
-        if (!stopped) setState({ live, refreshedAt: new Date() })
+        const j = (await r.json()) as { airTraffic: AirTraffic | null; airRaid: AirRaid | null }
+        if (!stopped)
+          setState((s) => ({
+            airTraffic: j.airTraffic ?? s.airTraffic,
+            airRaid: j.airRaid ?? s.airRaid,
+            refreshedAt: new Date(),
+          }))
       } catch (e) {
         if (!stopped) setState((s) => ({ ...s, error: (e as Error).message }))
       }
@@ -147,14 +175,12 @@ export function useLiveAirTraffic(): { live?: AirTraffic; error?: string; refres
   return state
 }
 
-const timeHM = (iso: string) => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
-
 export function AirTrafficCard({ data: snapshot, live, liveError }: { data?: AirTraffic; live?: AirTraffic; liveError?: string }) {
   const data = live ?? snapshot
   if (!data) return <div className="card placeholder">Brak danych o lotnictwie wojskowym.</div>
   const over = data.aircraft.filter((a) => a.overPoland)
   const cats = CATEGORY_ORDER.filter((c) => data.byCategory[c] > 0)
-  const ageMin = Math.max(0, Math.round((Date.now() - new Date(data.fetchedAt).getTime()) / 60_000))
+  const ageMin = ageMinutes(data.fetchedAt)
   return (
     <div className="card">
       <div className="card__head">

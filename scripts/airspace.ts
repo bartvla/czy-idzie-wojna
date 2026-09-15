@@ -3,87 +3,16 @@
  * zakłócenia GPS (gpsjam). Używane przez fetch-data.ts.
  */
 import { cellToBoundary, cellToLatLng } from 'h3-js'
-import type { AirRaid, AirRaidRegion, AirTraffic, GpsJam, GpsJamCell, GpsJamRegion } from '../src/types'
+import type { AirTraffic, GpsJam, GpsJamCell, GpsJamRegion } from '../src/types'
 import { PL_BBOX, fetchMilUpstreams, type RawAdsbAircraft } from '../shared/aircraft'
 
 type Http = (url: string, init?: RequestInit) => Promise<Response>
 
 /* ------------------------------------------------------------------ */
-/* Alarmy lotnicze – alerts.com.ua (publiczne, bez klucza)             */
+/* Alarmy lotnicze – logika w shared/airraid.ts (wspólna z Workerem,     */
+/* który serwuje je na żywo pod GET /airraid i /live)                    */
 /* ------------------------------------------------------------------ */
-const WESTERN_OBLASTS = ['Lviv', 'Volyn', 'Zakarpattia', 'Rivne', 'Ivano-Frankivsk', 'Ternopil', 'Chernivtsi', 'Khmelnytskyi']
-
-// Nazwy ukraińskie (ubilling) -> angielskie, żeby oba źródła dawały ten sam kształt danych.
-const UA_TO_EN: Record<string, string> = {
-  'Львівська': 'Lviv', 'Волинська': 'Volyn', 'Закарпатська': 'Zakarpattia', 'Рівненська': 'Rivne', 'Івано-Франківська': 'Ivano-Frankivsk',
-  'Тернопільська': 'Ternopil', 'Чернівецька': 'Chernivtsi', 'Хмельницька': 'Khmelnytskyi', 'Вінницька': 'Vinnytsia', 'Житомирська': 'Zhytomyr',
-  'Київська': 'Kyiv', 'м. Київ': 'Kyiv city', 'Черкаська': 'Cherkasy', 'Кіровоградська': 'Kirovohrad', 'Миколаївська': 'Mykolaiv', 'Одеська': 'Odesa',
-  'Херсонська': 'Kherson', 'Запорізька': 'Zaporizhzhia', 'Дніпропетровська': 'Dnipropetrovsk', 'Полтавська': 'Poltava', 'Сумська': 'Sumy',
-  'Харківська': 'Kharkiv', 'Донецька': 'Donetsk', 'Луганська': 'Luhansk', 'Чернігівська': 'Chernihiv', 'Севастополь': 'Sevastopol', 'Крим': 'Crimea',
-}
-
-function pickWestern(regions: AirRaidRegion[]): AirRaidRegion[] {
-  return WESTERN_OBLASTS.map((w) => regions.find((r) => r.name.toLowerCase().startsWith(w.toLowerCase()))).filter(
-    (r): r is AirRaidRegion => !!r,
-  )
-}
-
-const validIso = (s: string | undefined): string => {
-  const t = s ? Date.parse(s) : NaN
-  return Number.isFinite(t) && t > Date.parse('2022-02-24') ? new Date(t).toISOString() : ''
-}
-
-/** Źródło główne: ubilling.net.ua (agregator, świeży cache, bez klucza). Znaczniki czasu zmian są tam bezużyteczne. */
-async function fetchAirRaidUbilling(http: Http): Promise<AirRaid> {
-  const json = (await (await http('https://ubilling.net.ua/aerialalerts/?json=true')).json()) as {
-    cachedat: string
-    states: Record<string, { alertnow: boolean; changed: string }>
-  }
-  const regions: AirRaidRegion[] = Object.entries(json.states).map(([name, s]) => {
-    const key = Object.keys(UA_TO_EN).find((k) => name.startsWith(k))
-    return { name: key ? UA_TO_EN[key] : name, alert: s.alertnow, changed: validIso(s.changed) }
-  })
-  if (regions.length < 20) throw new Error('za mało obwodów')
-  return {
-    source: 'ubilling.net.ua/aerialalerts',
-    sourceUrl: 'https://ubilling.net.ua/aerialalerts/',
-    fetchedAt: new Date().toISOString(),
-    regions,
-    western: pickWestern(regions),
-    totalActive: regions.filter((r) => r.alert).length,
-    totalRegions: regions.length,
-  }
-}
-
-/** Źródło zapasowe: alerts.com.ua. W testach (wrzesień 2026) pokazywało mniej alarmów niż inne agregatory. */
-async function fetchAirRaidAlertsComUa(http: Http): Promise<AirRaid> {
-  const json = (await (await http('https://alerts.com.ua/api/states')).json()) as {
-    states: { id: number; name: string; name_en: string; alert: boolean; changed: string }[]
-  }
-  const regions: AirRaidRegion[] = json.states.map((s) => ({
-    name: s.name_en.replace(/ oblast$/i, ''),
-    alert: s.alert,
-    changed: validIso(s.changed),
-  }))
-  return {
-    source: 'alerts.com.ua',
-    sourceUrl: 'https://alerts.com.ua/',
-    fetchedAt: new Date().toISOString(),
-    regions,
-    western: pickWestern(regions),
-    totalActive: regions.filter((r) => r.alert).length,
-    totalRegions: regions.length,
-  }
-}
-
-export async function fetchAirRaid(http: Http): Promise<AirRaid> {
-  try {
-    return await fetchAirRaidUbilling(http)
-  } catch (e) {
-    console.warn(`ubilling niedostępny (${(e as Error).message}), używam alerts.com.ua`)
-    return fetchAirRaidAlertsComUa(http)
-  }
-}
+export { fetchAirRaid } from '../shared/airraid'
 
 /* ------------------------------------------------------------------ */
 /* Lotnictwo wojskowe – adsb.lol /v2/mil (publiczne, wymaga UA z kontaktem) */

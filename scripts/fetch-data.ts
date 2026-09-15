@@ -391,7 +391,7 @@ async function main() {
     safe('Polymarket', () => fetchPolymarket()),
     fetchAdvisories(),
     fetchAllNews(),
-    safe('Alarmy lotnicze (alerts.com.ua)', () => fetchAirRaid(http)),
+    safe('Alarmy lotnicze (ubilling / alerts.com.ua)', () => fetchAirRaid(http)),
     safe('Lotnictwo wojskowe (adsb.lol)', () => fetchAirTraffic(http)),
     safe('Zakłócenia GPS (gpsjam)', () => fetchGpsJam(http)),
   ])

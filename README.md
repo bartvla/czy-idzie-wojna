@@ -54,7 +54,7 @@ Kolejność według bezpośredniości i szybkości reakcji sygnału, nie według
 3. **Instytucje i dyplomacja** – komunikaty MON/RCB/MSZ, ostrzeżenia dla podróżnych.
 4. **Rynki finansowe**, 5. **Rynki predykcyjne**.
 
-Mapy alarmów i GPS pokazują stan z ostatniego runu skryptu (do godziny). Mapa lotnictwa ma podgląd na żywo przez Workera (poniżej).
+Mapa GPS pokazuje stan z ostatniego runu skryptu (do godziny). Mapy alarmów lotniczych i lotnictwa mają podgląd na żywo przez Workera (poniżej).
 
 ## Podgląd na żywo: Cloudflare Worker (`worker/`)
 
@@ -64,7 +64,9 @@ Publiczne API ADS-B (adsb.fi, adsb.lol, airplanes.live, OpenSky) nie wysyłają 
 2. `snapshot.json` z gałęzi `data`, co godzinę.
 
 Filtrowanie do regionu i kategoryzacja są w `shared/aircraft.ts`, wspólnym dla skryptów, pollera i Workera. Odpowiedź jest buforowana 20 s (nagłówek `X-Cache`), a przy awarii źródeł Worker serwuje ostatnią dobrą odpowiedź do 10 min; frontend przy błędzie wraca do snapshotu.
-- Frontend odpytuje Workera co 30 s, tylko gdy karta przeglądarki jest widoczna. Adres podaje zmienna `VITE_LIVE_API_URL`; bez niej mapa pokazuje snapshot.
+Alarmy lotnicze: `GET /airraid` zwraca `AirRaid` z ubilling.net.ua (zapas: alerts.com.ua) z pamięcią 30 s. Te źródła odpowiadają z adresów Cloudflare, więc Worker pyta je sam; normalizacja i walidacja są w `shared/airraid.ts`, wspólnym ze skryptem godzinowym.
+
+Strona odpytuje `GET /live` co 30 s, tylko gdy karta przeglądarki jest widoczna. `/live` zwraca samoloty i alarmy w jednej odpowiedzi, więc jedna otwarta karta to jedno wywołanie Workera na 30 s. Adres podaje zmienna `VITE_LIVE_API_URL`; bez niej strona pokazuje snapshot. `/mil` i `/airraid` zostają jako osobne adresy.
 
 Lokalnie: `cd worker && npm install && npm run dev` (http://localhost:8787/mil). Funkcja Vercel: `cd vercel-live && npm run bundle`. Poller: `LIVE_KEY=<sekret> node live-poller/server.mjs` (Node 23+).
 

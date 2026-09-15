@@ -3,7 +3,7 @@ import type { Snapshot } from './types'
 import { ChartCard } from './components/ChartCard'
 import { Tile } from './components/Tile'
 import { Verdict } from './components/Verdict'
-import { AirRaidCard, AirTrafficCard, GpsJamCard, useLiveAirTraffic } from './components/Airspace'
+import { AirRaidCard, AirTrafficCard, GpsJamCard, useLiveData } from './components/Airspace'
 import { fmt, fmtDate, fmtDayMonth } from './lib/stats'
 
 function useSnapshot() {
@@ -23,9 +23,11 @@ const levelClass = (level: string) =>
 
 export default function App() {
   const { snap: loaded, error } = useSnapshot()
-  const { live, error: liveError } = useLiveAirTraffic()
-  // Dane na żywo z Workera zastępują lotnictwo ze snapshotu wszędzie: w werdykcie, kafelkach i na mapie.
-  const snap = loaded && live ? { ...loaded, airTraffic: live } : loaded
+  const live = useLiveData()
+  // Dane na żywo z Workera (samoloty, alarmy) zastępują snapshot wszędzie: w werdykcie, kafelkach i na mapach.
+  const snap = loaded
+    ? { ...loaded, ...(live.airTraffic ? { airTraffic: live.airTraffic } : {}), ...(live.airRaid ? { airRaid: live.airRaid } : {}) }
+    : loaded
 
   if (error) {
     return (
@@ -53,7 +55,7 @@ export default function App() {
           </h1>
           <p>Twarde wskaźniki zamiast nagłówków: przestrzeń powietrzna, komunikaty instytucji, zakłady, rynki.</p>
         </div>
-        <div className="updated" title="Lotnictwo odświeżane co kilka minut; pozostałe dane z ostatniego pobrania">
+        <div className="updated" title="Samoloty i alarmy lotnicze na żywo; pozostałe dane z ostatniego pobrania">
           ostatnie pobranie danych: {new Date(snap.generatedAt).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}
         </div>
       </header>
@@ -64,11 +66,11 @@ export default function App() {
       {/* 3. Mapy */}
       <h2 className="section-title">Przestrzeń powietrzna</h2>
       <div className="grid">
-        <AirRaidCard data={snap.airRaid} />
+        <AirRaidCard data={snap.airRaid} live={!!live.airRaid} />
         <GpsJamCard data={snap.gpsJam} />
       </div>
       <div className="grid" style={{ gridTemplateColumns: '1fr' }}>
-        <AirTrafficCard data={loaded?.airTraffic} live={live} liveError={liveError} />
+        <AirTrafficCard data={loaded?.airTraffic} live={live.airTraffic} liveError={live.error} />
       </div>
 
       {/* 4. Decyzje instytucji */}
