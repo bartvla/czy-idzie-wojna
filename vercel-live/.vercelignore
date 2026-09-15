@@ -1,0 +1,10 @@
+# Na Vercel trafia tylko spakowana funkcja; źródło importuje ../shared, którego tam nie ma.
+src
+node_modules
+README.md
+
+# Lokalne pliki Vercel CLI i środowiskowe (m.in. VERCEL_OIDC_TOKEN) nie mogą trafić do wdrożenia
+.env
+.env.*
+.vercel
+.gitignore

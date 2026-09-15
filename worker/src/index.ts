@@ -5,11 +5,10 @@
  *                   przy awarii źródła ostatnia dobra odpowiedź do 10 min (X-Cache: STALE)
  *   GET /health  -> "ok"
  *
- * Skąd dane: z gałęzi `data` repozytorium GitHub, gdzie workflow aircraft.yml zapisuje
- * co 5 minut plik aircraft.json (a deploy.yml co godzinę snapshot.json). Worker NIE pyta
- * API ADS-B bezpośrednio, bo adsb.fi, adsb.lol, airplanes.live i OpenSky blokują adresy
- * wychodzące Cloudflare (403/429/522, sprawdzone z brzegu we wrześniu 2026), a serwery
- * GitHub Actions nie są blokowane.
+ * Skąd dane: Worker NIE pyta API ADS-B bezpośrednio, bo adsb.fi (403, reguła zapory)
+ * i adsb.lol (429) odrzucają adresy wychodzące Cloudflare (sprawdzone z brzegu we wrześniu 2026).
+ *   1. LIVE_SOURCE_URL – funkcja na Vercelu (vercel-live/), która pyta adsb.fi na żądanie,
+ *   2. snapshot.json z gałęzi `data`, zapisywany co godzinę przez deploy.yml.
  *
  * Uruchomienie lokalne: cd worker && npm run dev   (http://localhost:8787)
  * Wdrożenie:            cd worker && npm run deploy (wymaga `wrangler login`)
@@ -22,8 +21,8 @@ export interface Env {
   /** Repozytorium GitHub w formie owner/repo (gałąź `data`) */
   DATA_REPO?: string
   /**
-   * Opcjonalne źródło naprawdę na żywo: własny poller (live-poller/) stojący poza Cloudflare,
-   * np. https://live.czyidziewojna.pl/mil. Sekret: `wrangler secret put LIVE_SOURCE_KEY`.
+   * Źródło na żywo poza Cloudflare: funkcja Vercel (vercel-live/) albo własny poller (live-poller/).
+   * Adres w wrangler.jsonc, klucz jako sekret: `wrangler secret put LIVE_SOURCE_KEY`.
    */
   LIVE_SOURCE_URL?: string
   LIVE_SOURCE_KEY?: string
@@ -84,7 +83,7 @@ function isAirTraffic(x: unknown): x is AirTraffic {
   return !!t && typeof t === 'object' && Array.isArray(t.aircraft) && typeof t.fetchedAt === 'string' && typeof t.byCategory === 'object'
 }
 
-/** Własny poller (co ~15 s), potem aircraft.json z GitHuba (co 5 min), na końcu snapshot.json (co godzinę). */
+/** Źródło na żywo (Vercel lub poller), a przy jego awarii snapshot.json z GitHuba (co godzinę). */
 async function fetchMil(env: Env): Promise<string> {
   const errors: string[] = []
   if (env.LIVE_SOURCE_URL) {
@@ -100,13 +99,6 @@ async function fetchMil(env: Env): Promise<string> {
     } catch (e) {
       errors.push(`live: ${(e as Error).message}`)
     }
-  }
-  try {
-    const t = await readDataBranch(env, 'aircraft.json')
-    if (isAirTraffic(t)) return JSON.stringify(t)
-    errors.push('aircraft.json: zły format')
-  } catch (e) {
-    errors.push((e as Error).message)
   }
   try {
     const s = (await readDataBranch(env, 'snapshot.json')) as { airTraffic?: unknown }

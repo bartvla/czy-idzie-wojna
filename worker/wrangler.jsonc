@@ -6,7 +6,9 @@
   "vars": {
     // Originy, które mogą korzystać z proxy. Lokalny wrangler dev przyjmuje każdy origin automatycznie (patrz index.ts).
     "ALLOWED_ORIGINS": "https://czyidziewojna.pl,https://www.czyidziewojna.pl,https://bartvla.github.io",
-    // Repozytorium, z którego gałęzi data Worker czyta aircraft.json / snapshot.json
-    "DATA_REPO": "bartvla/czy-idzie-wojna"
+    // Repozytorium, z którego gałęzi data Worker czyta snapshot.json (zapas, gdy źródło na żywo nie odpowiada)
+    "DATA_REPO": "bartvla/czy-idzie-wojna",
+    // Źródło na żywo: funkcja Vercel (vercel-live/). Klucz: sekret LIVE_SOURCE_KEY (wrangler secret put).
+    "LIVE_SOURCE_URL": "https://czyidziewojna-live.vercel.app/api/mil"
   }
 }

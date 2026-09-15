@@ -35,3 +35,7 @@ instructions.md
 
 # Lokalna konfiguracja narzędzi
 .claude/
+
+# Vercel: spakowana funkcja i lokalny stan CLI
+vercel-live/api/
+.vercel/

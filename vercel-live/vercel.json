@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "",
+  "regions": ["fra1"],
+  "functions": {
+    "api/mil.js": { "maxDuration": 20 }
+  }
+}

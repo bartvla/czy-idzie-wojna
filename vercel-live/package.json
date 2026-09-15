@@ -1,0 +1,9 @@
+{
+  "name": "czyidziewojna-live-vercel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "node ../node_modules/esbuild/bin/esbuild src/mil.ts --bundle --platform=node --format=esm --target=node20 --outfile=api/mil.js --log-level=warning",
+    "deploy": "npm run bundle && npx vercel@latest deploy --prod"
+  }
+}

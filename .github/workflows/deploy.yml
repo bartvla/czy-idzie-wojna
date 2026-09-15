@@ -45,6 +45,8 @@ jobs:
             # Gałąź data trzyma pliki w katalogu głównym; rozpakowujemy je do public/data.
             mkdir -p public/data
             git archive origin/data | tar -x -C public/data
+            # aircraft.json pisał usunięty workflow co 5 min; nieaktualny plik nie może wracać na gałąź data.
+            rm -f public/data/aircraft.json
             echo "przywrócono public/data z gałęzi data:" && ls -la public/data
           else
             echo "brak gałęzi data – pierwszy run"

@@ -163,7 +163,7 @@ export function AirTrafficCard({ data: snapshot, live, liveError }: { data?: Air
           {live ? (
             <span
               className={`badge live ${ageMin > 20 ? 'badge--warn' : 'badge--ok'}`}
-              title={`pozycje z ${timeHM(data.fetchedAt)}, plik odświeżany co ok. 5 min, strona sprawdza co ${LIVE_INTERVAL_MS / 1000} s`}
+              title={`pozycje z ${timeHM(data.fetchedAt)}, strona sprawdza co ${LIVE_INTERVAL_MS / 1000} s`}
             >
               ● {timeHM(data.fetchedAt)}
               {ageMin > 20 && ` (${ageMin} min temu)`}

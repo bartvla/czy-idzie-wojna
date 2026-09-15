@@ -8,8 +8,8 @@ rynki, obligacje, waluty, rynki predykcyjne, ostrzeżenia dyplomatyczne, komunik
 - React 19 + TypeScript + Vite, wykresy: Recharts
 - Bez klasycznego backendu. Skrypt `scripts/fetch-data.ts` (Node 22+, `tsx`) pobiera dane i zapisuje
   `public/data/snapshot.json`. GitHub Actions (`.github/workflows/deploy.yml`) uruchamia go co godzinę,
-  buduje stronę i publikuje na GitHub Pages. Jedyny element serwerowy to mały Cloudflare Worker
-  (proxy dla mapy lotnictwa na żywo).
+  buduje stronę i publikuje na GitHub Pages. Elementy serwerowe to mały Cloudflare Worker
+  (proxy dla mapy lotnictwa na żywo) i funkcja na Vercelu, która pobiera dane ADS-B dla Workera.
 - `public/data/history.json` to własna, narastająca historia dla wskaźników, które nie mają
   darmowej dziennej historii (rentowności obligacji z TradingView).
 
@@ -33,7 +33,7 @@ npm run build   # produkcja -> dist/
 | Ostrzeżenia dla podróżnych do Polski | [US State Dept RSS](https://travel.state.gov/_res/rss/TAsTWs.xml), [UK FCDO content API](https://www.gov.uk/api/content/foreign-travel-advice/poland) | XML / JSON | Podniesienie poziomu (Level 3/4, „avoid all travel”) to typowy sygnał przed ewakuacją ambasad. Do dodania: Kanada, Niemcy (AA), Francja. |
 | Komunikaty MON / RCB / MSZ | gov.pl, sekcja „Aktualności” na stronie głównej instytucji | HTML | gov.pl nie ma RSS; podstrony list przekierowują boty na stronę główną portalu, ale strona główna instytucji działa. wojsko-polskie.pl (DORSZ) blokuje boty (Imperva). |
 | Alarmy lotnicze w Ukrainie | [ubilling.net.ua/aerialalerts](https://ubilling.net.ua/aerialalerts/?json=true) (główne), [alerts.com.ua](https://alerts.com.ua/api/states) (zapasowe) | JSON, bez klucza | Stan alarmu per obwód. Pokazujemy 8 zachodnich obwodów. Uwaga: 13.09.2026 oba źródła się różniły (ubilling 10/26 alarmów, alerts.com.ua 1/25), więc do produkcji warto wziąć darmowy token z [alerts.in.ua](https://alerts.in.ua/) (mail do api@alerts.in.ua) albo ukrainealarm.com i podpiąć jako źródło główne. |
-| Lotnictwo wojskowe nad Polską | [adsb.fi /v2/mil](https://opendata.adsb.fi/api/v2/mil) (główne), [adsb.lol /v2/mil](https://api.adsb.lol/v2/mil) (zapasowe) | JSON, bez klucza, rozsądny User-Agent | Oba API są zgodne z readsb (ten sam JSON). adsb.lol z adresów Cloudflare odpowiada 429, adsb.fi nie. Tylko maszyny nadające ADS-B i oflagowane jako wojskowe. Kategoryzacja po kodzie typu ICAO i prefiksie znaku wywoławczego (`shared/aircraft.ts`). OpenSky działa anonimowo jako alternatywa, ale bez flagi „wojskowy”. airplanes.live wymaga zgody mailowej, adsb.one blokuje boty. |
+| Lotnictwo wojskowe nad Polską | [adsb.fi /v2/mil](https://opendata.adsb.fi/api/v2/mil) (główne), [adsb.lol /v2/mil](https://api.adsb.lol/v2/mil) (zapasowe) | JSON, bez klucza, rozsądny User-Agent | Oba API są zgodne z readsb (ten sam JSON). Oba odrzucają adresy Cloudflare Workers (adsb.fi 403, adsb.lol 429), dlatego pobiera je funkcja na Vercelu (`vercel-live/`). Tylko maszyny nadające ADS-B i oflagowane jako wojskowe. Kategoryzacja po kodzie typu ICAO i prefiksie znaku wywoławczego (`shared/aircraft.ts`). OpenSky działa anonimowo jako alternatywa, ale bez flagi „wojskowy”. airplanes.live wymaga zgody mailowej, adsb.one blokuje boty. |
 | Zakłócenia GPS (Bałtyk, Polska) | [gpsjam.org](https://gpsjam.org/) dzienny CSV `/data/YYYY-MM-DD-h3_4.csv` | CSV, siatka H3 res 4 | Plik za poprzedni dzień. Liczymy odsetek komórek z ≥10% samolotów zgłaszających złą nawigację w bboxie Bałtyku i Polski (h3-js). Historia narasta w `history.json`. |
 
 ### Źródła sprawdzone i odrzucone
@@ -60,14 +60,13 @@ Mapy alarmów i GPS pokazują stan z ostatniego runu skryptu (do godziny). Mapa 
 
 Publiczne API ADS-B (adsb.fi, adsb.lol, airplanes.live, OpenSky) nie wysyłają nagłówków CORS i blokują zapytania z adresów wychodzących Cloudflare Workers, więc Worker nie pyta ich bezpośrednio. `GET /mil` zwraca `AirTraffic` (ten sam kształt co w snapshotcie) z pierwszego dostępnego źródła:
 
-1. własny poller `live-poller/` uruchomiony poza Cloudflare (dane co ~15 s, opcjonalny),
-2. `aircraft.json` z gałęzi `data`, zapisywany przez workflow `aircraft.yml` co 5 minut,
-3. `snapshot.json` z gałęzi `data`, co godzinę.
+1. funkcja na Vercelu `vercel-live/`, która pyta adsb.fi na żądanie Workera (dane sprzed kilkudziesięciu sekund; alternatywnie własny poller `live-poller/`),
+2. `snapshot.json` z gałęzi `data`, co godzinę.
 
 Filtrowanie do regionu i kategoryzacja są w `shared/aircraft.ts`, wspólnym dla skryptów, pollera i Workera. Odpowiedź jest buforowana 20 s (nagłówek `X-Cache`), a przy awarii źródeł Worker serwuje ostatnią dobrą odpowiedź do 10 min; frontend przy błędzie wraca do snapshotu.
 - Frontend odpytuje Workera co 30 s, tylko gdy karta przeglądarki jest widoczna. Adres podaje zmienna `VITE_LIVE_API_URL`; bez niej mapa pokazuje snapshot.
 
-Lokalnie: `cd worker && npm install && npm run dev` (http://localhost:8787/mil). Poller: `LIVE_KEY=<sekret> node live-poller/server.mjs` (Node 23+).
+Lokalnie: `cd worker && npm install && npm run dev` (http://localhost:8787/mil). Funkcja Vercel: `cd vercel-live && npm run bundle`. Poller: `LIVE_KEY=<sekret> node live-poller/server.mjs` (Node 23+).
 
 ## Indeks napięcia
 
